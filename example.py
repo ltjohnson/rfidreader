@@ -22,10 +22,13 @@ def signal_handler(signal, frame):
 
 # Callback for rfid tags.  
 def play_song_by_rfid(rfid):
+  print "[%s]" % rfid, 
   if rfid in rfid_dict:
+    print "play %s" % rfid_dict[rfid]
     pygame.mixer.music.load(rfid_dict[rfid])
     pygame.mixer.music.play()
   else:
+    print "stop"
     if pygame.mixer.music.get_busy():
       pygame.mixer.music.stop()
 
