@@ -63,7 +63,6 @@ if __name__ == '__main__':
 
   rdr = rfidreader.RFIDReader()
   rdr.set_callback(tag_callback)
-  rdr.start_looping()
 
   player = pygameplayer.Player('playlist.csv')
 
