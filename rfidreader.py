@@ -1,9 +1,17 @@
+import re
 import select
 import serial
 import threading
 import time
 
 class RFIDReader(object):
+  __TO_OPEN  = 1
+  __TO_CLOSE = 2
+  __CLOSED   = 3
+  __OPEN     = 4
+
+  __MAX_PORT = 10
+
   def __init__(self, port='/dev/ttyUSB0', baudrate=2400, read_delay=1500, 
                same_tag_delay=4000):
     self.port = port
@@ -15,13 +23,17 @@ class RFIDReader(object):
     self.read_thread = None
     self.ser = None
     self.callback = None
-    self.__keep_looping = True
-    self.thread = None
-    self.open_port()
+    self.__threads = {}
+    self.__port_status = RFIDReader.__TO_OPEN
+    self.__open_failed = False
+    self.__start_read_thread()
+    self.__start_open_thread()
+
 
   def __del__(self):
-    self.stop_looping()
     self.close_port()
+    for thread_name in self.__threads:
+      self.__stop_thread(thread_name)
 
   def open_port(self, port=None, baudrate=None, read_delay=None):
     # Close an existing connection.
@@ -29,19 +41,25 @@ class RFIDReader(object):
     if port: self.port = port
     if baudrate: self.buadrate = baudrate
     if read_delay: self.read_delay = read_delay
+    self.__port_status = RFIDReader.__TO_OPEN
+
+  def __open_port(self):
     self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
     self.ser.nonblocking()
     self.last_read = None
+    self.__port_status = RFIDReader.__OPEN
 
   def close_port(self):
+    self.__port_status = RFIDReader.__TO_CLOSE
     if self.ser:
       self.ser.close()
     self.ser = None
+    self.__port_status = RFIDReader.__CLOSED
 
   def set_callback(self, fun):
     self.callback = fun
   
-  def read(self):
+  def __read(self):
     if self.ser is None:
       return None
     if not self.ser.inWaiting():
@@ -85,32 +103,57 @@ class RFIDReader(object):
     x = [x for x in s.split('\n') if len(x) == 10]
     return x[len(x) - 1] if x else None
 
-  def __read_loop(self):
-    while self.__keep_looping:
-      # Wait until there is data to read, timeout is for thread control.
-      readable, _, _ = select.select([self.ser.fileno()], [], [], 0.05)
-      if readable:
-        self.read()
-    
-  def looping(self):
-    return self.thread.is_alive() if self.thread else False
+  def __open_thread(self):
+    while self.__threads['open_loop']['keep_looping']:
+      if self.__port_status == RFIDReader.__TO_OPEN:
+        try:
+          self.__open_port()
+        except serial.serialutil.SerialException:
+          if self.__open_failed:
+            # We've already failed to open at least once, let's try cycling
+            # through ports.
+            port_num = int(re.sub(r'[^0-9]', '', self.port))
+            port_num = (port_num + 1) % (RFIDReader.__MAX_PORT + 1)
+            self.port = "%s%d" % (re.sub(r'[0-9]', '', self.port), port_num)
+          self.__open_failed = True
+        else:
+          self.__open_failed = False
+        time.sleep(0.05)
+      time.sleep(0.05)
 
-  def stop_looping(self):
-    if not self.thread:
-      return None
-    # Set the stop flag and wait until the thread exits.
-    self.__keep_looping = False
-    self.thread.join()
-    self.thread = None
-
-  def start_looping(self):
-    self.stop_looping()
-    self.__keep_looping = True
-    self.thread = threading.Thread(target=self.__read_loop)
-    self.thread.daemon = True
-    self.thread.start()
+  def __read_thread(self):
+    while self.__threads['read_loop']['keep_looping']:
+      if self.ser is None:
+        time.sleep(0.10)
+      else:
+        # Wait until there is data to read, timeout is for thread control.
+        try:
+          readable, _, _ = select.select([self.ser.fileno()], [], [], 0.05)
+          if readable:
+            self.__read()
+        except IOError:
+          # Reading failed, assume port is closed.
+          self.ser = None
+          self.__port_status = RFIDReader.__TO_OPEN
     
-  def get_loop_thread(self):
-    return self.thread
-      
+  def __stop_thread(self, thread_name):
+    if thread_name not in self.__threads:
+      return
+    self.__threads[thread_name]['keep_looping'] = False
+    self.__threads[thread_name]['thread'].join()
+    del self.__threads[thread_name]
+    
+  def __start_thread(self, thread, thread_name):
+    self.__stop_thread(thread_name)
+    self.__threads[thread_name] = {'thread': thread, 'keep_looping': True}
+    self.__threads[thread_name]['thread'].daemon = True
+    self.__threads[thread_name]['thread'].start()
+
+  def __start_read_thread(self):
+    thread = threading.Thread(target=self.__read_thread)
+    self.__start_thread(thread, 'read_loop')
+    
+  def __start_open_thread(self):
+    thread = threading.Thread(target=self.__open_thread)
+    self.__start_thread(thread, 'open_loop')
      
