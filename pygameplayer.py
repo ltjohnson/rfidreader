@@ -58,7 +58,8 @@ class Player(object):
     if self.playlist:
       self.play(pos = random.randint(0, len(self.playlist) - 1))
 
-  def play(self, song=None, pos=None):
+  def play(self, song=None, playlist=None, album=None, pos=None):
+    # Note, playlist and album are currently annoyed.
     if self.state == Player.PAUSED:
       return self.pause()
     if pos is None and song is None:

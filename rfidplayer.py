@@ -8,12 +8,15 @@ class TagAction(object):
   def __init__(self, l):
     self.tag_id = None
     self.action = None
+    self.list_name = None
     self.song = None
     if l:
       self.tag_id = l[0]
       self.action = l[1]
       if len(l) > 2:
-        self.song = l[2]
+        self.list_name = l[2]
+      if len(l) > 3:
+        self.song = l[3]
 
 def read_tagslist(filename="tags.csv"):
   with open(filename, 'rb') as f:
@@ -32,7 +35,10 @@ def tag_callback(tag_id):
     print "[%s] UNKNOWN" % tag_id
     return
   tag = tags[tag_id]
-  print "[%s] %s" % (tag_id, tag.action),
+  print "[%s] %s [%s] [%s]" % (tag_id, tag.action, tag.list_name, tag.song),
+  if player is None:
+    print "Player not yet initialized"
+    return
   if tag.action == "stop":
     player.stop()
   elif tag.action == "play":
@@ -41,9 +47,10 @@ def tag_callback(tag_id):
     player.pause()
   elif tag.action == "random":
     player.play_random()
-  elif tag.action == "song":
-    player.play(song=tag.song)
-    print "%s" % tag.song,
+  elif tag.action == "playlist":
+    player.play(song=tag.song, playlist=tag.list_name)
+  elif tag.action == "album":
+    player.play(song=tag.song, album=tags.list_name)
   else:
     print "UNKNOWN ACTION",
   print
