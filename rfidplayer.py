@@ -47,6 +47,8 @@ def tag_callback(tag_id):
     player.pause()
   elif tag.action == "random":
     player.play_random()
+  elif tag.action == "next":
+    player.next_song()
   elif tag.action == "playlist":
     player.play(song=tag.song, playlist=tag.list_name)
   elif tag.action == "album":

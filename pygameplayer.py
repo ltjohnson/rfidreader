@@ -94,3 +94,6 @@ class Player(object):
     elif self.state == Player.PAUSED:
       pygame.mixer.music.unpause()
       self.state = Player.PLAYING
+
+  def next_song(self):
+    self.play(pos=self.pos + 1)
