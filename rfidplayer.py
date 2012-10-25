@@ -52,7 +52,7 @@ def tag_callback(tag_id):
   elif tag.action == "playlist":
     player.play(song=tag.song, playlist=tag.list_name)
   elif tag.action == "album":
-    player.play(song=tag.song, album=tags.list_name)
+    player.play(song=tag.song, album=tag.list_name)
   else:
     print "UNKNOWN ACTION",
   print
